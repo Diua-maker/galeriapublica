@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArtGallery - Painel do Artista</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        
+        // Firebase config - SUBSTITUA pelos seus dados reais
+        const firebaseConfig = {
+            apiKey: "AIzaSyCrvhivnKnSil-coS1LePEFGQegS_g0B1M",
+            authDomain: "galeriapublica-1a3d8.firebaseapp.com",
+            projectId: "galeriapublica-1a3d8",
+            storageBucket: "galeriapublica-1a3d8.firebasestorage.app",
+            messagingSenderId: "974611554845",
+            appId: "1:974611554845:web:0b1328b7623184d673dcf4"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        window.firebaseAuth = getAuth(app);
+        window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+        window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+        window.signOut = signOut;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.updateProfile = updateProfile;
+    </script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5D5CDE',
+                        secondary: '#FF6B6B',
+                        accent: '#4ECDC4',
+                        dark: '#181818'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.6s ease-out',
+                        'slide-up': 'slideUp 0.8s ease-out',
+                        'slide-left': 'slideLeft 0.6s ease-out',
+                        'zoom-in': 'zoomIn 0.5s ease-out',
+                        'float': 'float 3s ease-in-out infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(30px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        slideLeft: {
+                            '0%': { transform: 'translateX(30px)', opacity: '0' },
+                            '100%': { transform: 'translateX(0)', opacity: '1' }
+                        },
+                        zoomIn: {
+                            '0%': { transform: 'scale(0.9)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-10px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #5D5CDE 0%, #FF6B6B 50%, #4ECDC4 100%);
+        }
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .dark .glass-effect {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .upload-area {
+            border: 2px dashed #5D5CDE;
+            transition: all 0.3s ease;
+        }
+        .upload-area.drag-over {
+            border-color: #FF6B6B;
+            background-color: rgba(93, 92, 222, 0.1);
+        }
+        .image-preview {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.5rem;
+        }
+        .image-preview img {
+            transition: transform 0.3s ease;
+        }
+        .image-preview:hover img {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-dark text-gray-900 dark:text-white transition-colors duration-300">
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-palette text-2xl text-primary"></i>
+                    <span class="text-xl font-bold">ArtGallery</span>
+                    <span class="text-sm text-gray-500 hidden sm:block">Painel do Artista</span>
+                </div>
+                <div class="hidden md:flex space-x-6" id="nav-menu">
+                    <!-- Navigation items will be populated by JavaScript -->
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="index.html" class="hidden md:block text-gray-600 dark:text-gray-300 hover:text-primary transition-colors">
+                        <i class="fas fa-external-link-alt mr-2"></i>Ver Galeria Pública
+                    </a>
+                    <button id="mobile-menu-btn" class="md:hidden text-2xl">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="fixed inset-0 z-40 bg-black bg-opacity-50 hidden">
+        <div class="fixed top-0 right-0 w-64 h-full bg-white dark:bg-gray-800 transform translate-x-full transition-transform duration-300" id="mobile-menu-panel">
+            <div class="p-4">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="text-xl font-bold">Menu</span>
+                    <button id="close-mobile-menu" class="text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="space-y-4" id="mobile-nav-menu">
+                    <!-- Mobile menu items will be populated by JavaScript -->
+                </div>
+                <div class="border-t border-gray-200 dark:border-gray-600 mt-4 pt-4">
+                    <a href="index.html" class="block w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                        <i class="fas fa-external-link-alt mr-3"></i>Ver Galeria Pública
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-lg">
+            <div class="flex items-center space-x-3">
+                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span>Carregando...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Page (Login/Register) -->
+    <div id="auth" class="page active">
+        <div class="min-h-screen gradient-bg flex items-center justify-center px-4">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md animate-zoom-in">
+                <!-- Login Form -->
+                <div id="login-form" class="auth-form">
+                    <div class="text-center mb-8">
+                        <i class="fas fa-palette text-4xl text-primary mb-4"></i>
+                        <h2 class="text-3xl font-bold mb-2">Bem-vindo de volta</h2>
+                        <p class="text-gray-600 dark:text-gray-400">Entre na sua conta de artista</p>
+                    </div>
+                    
+                    <form id="login-form-element" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Email</label>
+                            <input type="email" id="login-email" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Senha</label>
+                            <input type="password" id="login-password" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-lg hover:bg-opacity-90 transition-all font-medium">
+                            <span id="login-btn-text">Entrar</span>
+                            <i id="login-btn-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                        </button>
+                    </form>
+                    
+                    <div class="text-center mt-6">
+                        <p class="text-gray-600 dark:text-gray-400">
+                            Ainda não tem conta? 
+                            <button onclick="showRegisterForm()" class="text-primary hover:underline font-medium">Cadastre-se</button>
+                        </p>
+                        <p class="text-gray-600 dark:text-gray-400 mt-2">
+                            <a href="index.html" class="text-primary hover:underline">Ver Galeria Pública</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Register Form -->
+                <div id="register-form" class="auth-form hidden">
+                    <div class="text-center mb-8">
+                        <i class="fas fa-user-plus text-4xl text-primary mb-4"></i>
+                        <h2 class="text-3xl font-bold mb-2">Criar Conta</h2>
+                        <p class="text-gray-600 dark:text-gray-400">Junte-se à nossa comunidade de artistas</p>
+                    </div>
+                    
+                    <form id="register-form-element" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Nome Completo</label>
+                            <input type="text" id="register-name" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Email</label>
+                            <input type="email" id="register-email" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Senha</label>
+                            <input type="password" id="register-password" required minlength="6" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Confirmar Senha</label>
+                            <input type="password" id="register-confirm-password" required minlength="6" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-lg hover:bg-opacity-90 transition-all font-medium">
+                            <span id="register-btn-text">Criar Conta</span>
+                            <i id="register-btn-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                        </button>
+                    </form>
+                    
+                    <div class="text-center mt-6">
+                        <p class="text-gray-600 dark:text-gray-400">
+                            Já tem conta? 
+                            <button onclick="showLoginForm()" class="text-primary hover:underline font-medium">Fazer login</button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboard" class="page">
+        <div class="pt-20 pb-10 min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div class="container mx-auto px-4">
+                <div class="mb-8">
+                    <h1 class="text-4xl font-bold mb-2 animate-fade-in">Painel do Artista</h1>
+                    <p class="text-gray-600 dark:text-gray-400 animate-slide-up">Gerencie seu perfil e suas obras de arte</p>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-zoom-in">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-2xl font-bold text-primary" id="stats-artworks">0</p>
+                                <p class="text-gray-600 dark:text-gray-400">Obras</p>
+                            </div>
+                            <i class="fas fa-images text-3xl text-primary"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-zoom-in" style="animation-delay: 0.1s;">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-2xl font-bold text-secondary" id="stats-views">0</p>
+                                <p class="text-gray-600 dark:text-gray-400">Visualizações</p>
+                            </div>
+                            <i class="fas fa-eye text-3xl text-secondary"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg animate-zoom-in" style="animation-delay: 0.2s;">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-2xl font-bold text-accent" id="stats-likes">0</p>
+                                <p class="text-gray-600 dark:text-gray-400">Curtidas</p>
+                            </div>
+                            <i class="fas fa-heart text-3xl text-accent"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <button onclick="showPage('profile')" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 bg-primary bg-opacity-10 rounded-lg flex items-center justify-center mr-4 group-hover:bg-opacity-20 transition-colors">
+                                <i class="fas fa-user text-primary text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold mb-1">Editar Perfil</h3>
+                                <p class="text-gray-600 dark:text-gray-400">Atualize suas informações pessoais</p>
+                            </div>
+                        </div>
+                    </button>
+                    <button onclick="showPage('artworks')" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all text-left group">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 bg-secondary bg-opacity-10 rounded-lg flex items-center justify-center mr-4 group-hover:bg-opacity-20 transition-colors">
+                                <i class="fas fa-plus text-secondary text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold mb-1">Gerenciar Obras</h3>
+                                <p class="text-gray-600 dark:text-gray-400">Adicione ou edite suas criações</p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Recent Artworks -->
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Obras Recentes</h2>
+                        <button onclick="showPage('artworks')" class="text-primary hover:underline">Ver todas</button>
+                    </div>
+                    <div id="recent-artworks" class="grid md:grid-cols-3 gap-4">
+                        <!-- Recent artworks will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Page -->
+    <div id="profile" class="page">
+        <div class="pt-20 pb-10 min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div class="container mx-auto px-4">
+                <div class="max-w-4xl mx-auto">
+                    <div class="mb-8">
+                        <h1 class="text-4xl font-bold mb-2 animate-fade-in">Perfil do Artista</h1>
+                        <p class="text-gray-600 dark:text-gray-400 animate-slide-up">Mantenha suas informações atualizadas</p>
+                    </div>
+
+                    <form id="profile-form" class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+                        <div class="grid md:grid-cols-2 gap-8">
+                            <!-- Profile Image -->
+                            <div class="md:col-span-2 text-center mb-8">
+                                <div class="relative inline-block">
+                                    <img id="profile-avatar-preview" src="https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face" alt="Avatar" class="w-32 h-32 rounded-full object-cover border-4 border-primary">
+                                    <label for="profile-avatar" class="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full cursor-pointer hover:bg-opacity-90 transition-colors">
+                                        <i class="fas fa-camera"></i>
+                                    </label>
+                                    <input type="file" id="profile-avatar" accept="image/*" class="hidden">
+                                </div>
+                                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Clique no ícone para alterar a foto</p>
+                            </div>
+
+                            <!-- Basic Info -->
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Nome Completo *</label>
+                                <input type="text" id="profile-name" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Email *</label>
+                                <input type="email" id="profile-email" required disabled class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 cursor-not-allowed">
+                                <p class="text-xs text-gray-500 mt-1">O email não pode ser alterado</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Estilo Artístico *</label>
+                                <select id="profile-style" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                                    <option value="">Selecione um estilo</option>
+                                    <option value="realismo">Realismo</option>
+                                    <option value="abstrato">Abstrato</option>
+                                    <option value="impressionismo">Impressionismo</option>
+                                    <option value="moderno">Moderno</option>
+                                    <option value="contemporaneo">Contemporâneo</option>
+                                    <option value="classico">Clássico</option>
+                                    <option value="minimalista">Minimalista</option>
+                                    <option value="surrealismo">Surrealismo</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Localização</label>
+                                <input type="text" id="profile-location" placeholder="Cidade, Estado" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Telefone</label>
+                                <input type="tel" id="profile-phone" placeholder="(11) 99999-9999" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium mb-2">WhatsApp</label>
+                                <input type="tel" id="profile-whatsapp" placeholder="5511999999999" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                                <p class="text-xs text-gray-500 mt-1">Formato: código do país + número (ex: 5511999999999)</p>
+                            </div>
+
+                            <!-- Bio -->
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium mb-2">Biografia *</label>
+                                <textarea id="profile-bio" required rows="4" placeholder="Conte um pouco sobre você, sua trajetória artística e inspirações..." class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-8">
+                            <button type="submit" class="bg-primary text-white px-8 py-3 rounded-lg hover:bg-opacity-90 transition-all font-medium">
+                                <span id="profile-btn-text">Salvar Alterações</span>
+                                <i id="profile-btn-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Artworks Page -->
+    <div id="artworks" class="page">
+        <div class="pt-20 pb-10 min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div class="container mx-auto px-4">
+                <div class="mb-8 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-4xl font-bold mb-2 animate-fade-in">Minhas Obras</h1>
+                        <p class="text-gray-600 dark:text-gray-400 animate-slide-up">Gerencie sua coleção de arte</p>
+                    </div>
+                    <button onclick="showAddArtworkModal()" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-all">
+                        <i class="fas fa-plus mr-2"></i>Nova Obra
+                    </button>
+                </div>
+
+                <!-- Artworks Grid -->
+                <div id="artworks-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Artworks will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Artwork Modal -->
+    <div id="artwork-modal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 id="artwork-modal-title" class="text-2xl font-bold">Nova Obra</h2>
+                    <button onclick="closeArtworkModal()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form id="artwork-form">
+                    <input type="hidden" id="artwork-id">
+                    
+                    <!-- Image Upload -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Imagem da Obra *</label>
+                        <div id="artwork-upload-area" class="upload-area border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-secondary transition-colors">
+                            <div id="upload-placeholder">
+                                <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                <p class="text-gray-600 dark:text-gray-400 mb-2">Clique ou arraste uma imagem aqui</p>
+                                <p class="text-sm text-gray-500">PNG, JPG ou WebP até 5MB</p>
+                            </div>
+                            <div id="upload-preview" class="hidden">
+                                <img id="artwork-image-preview" class="max-w-full h-48 object-cover rounded-lg mx-auto">
+                                <button type="button" onclick="removeArtworkImage()" class="mt-2 text-red-500 hover:text-red-700">
+                                    <i class="fas fa-trash mr-1"></i>Remover
+                                </button>
+                            </div>
+                        </div>
+                        <input type="file" id="artwork-image" accept="image/*" class="hidden">
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Título *</label>
+                            <input type="text" id="artwork-title" required class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Ano *</label>
+                            <input type="number" id="artwork-year" required min="1900" max="2030" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Técnica/Material *</label>
+                            <input type="text" id="artwork-medium" required placeholder="Ex: Óleo sobre tela" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Dimensões</label>
+                            <input type="text" id="artwork-dimensions" placeholder="Ex: 60x80 cm" class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700">
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium mb-2">Descrição *</label>
+                        <textarea id="artwork-description" required rows="4" placeholder="Descreva sua obra, inspiração e técnica utilizada..." class="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 resize-none"></textarea>
+                    </div>
+
+                    <div class="flex justify-end space-x-4 mt-8">
+                        <button type="button" onclick="closeArtworkModal()" class="px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-all">
+                            <span id="artwork-btn-text">Salvar Obra</span>
+                            <i id="artwork-btn-spinner" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div id="toast-container" class="fixed top-20 right-4 z-50 space-y-2">
+        <!-- Toast messages will appear here -->
+    </div>
+
+    <script>
+        // Dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+
+        // Supabase configuration
+        
+        // Supabase configuration
+        const SUPABASE_URL = 'https://xdtjflradtanmgprziqc.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkdGpmbHJhZHRhbm1ncHJ6aXFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1NTEwMTMsImV4cCI6MjA3NjEyNzAxM30.7Iv12pKVf0QMZcitIskcvredYaEycNA4M0Bv4PNM4AM';
+        
+        
+        let supabase;
+        let currentUser = null;
+
+        // Initialize Supabase
+        try {
+            if (window.supabase && window.supabase.createClient) {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase initialized successfully');
+            }
+        } catch (error) {
+            console.log('Supabase not configured, using demo mode:', error);
+            supabase = null;
+        }
+
+        // Firebase Auth State Listener
+        let authStateReady = false;
+        setTimeout(() => {
+            if (window.firebaseAuth && window.onAuthStateChanged) {
+                window.onAuthStateChanged(window.firebaseAuth, (user) => {
+                    if (user) {
+                        currentUser = {
+                            id: user.uid,
+                            email: user.email,
+                            name: user.displayName || user.email
+                        };
+                        updateNavigation();
+                        if (authStateReady) {
+                            showPage('dashboard');
+                        }
+                    } else {
+                        currentUser = null;
+                        updateNavigation();
+                        if (authStateReady) {
+                            showPage('auth');
+                        }
+                    }
+                    authStateReady = true;
+                    hideLoadingSpinner();
+                });
+            } else {
+                console.log('Firebase not configured, using demo mode');
+                hideLoadingSpinner();
+            }
+        }, 1000);
+
+        function hideLoadingSpinner() {
+            const loadingSpinner = document.getElementById('loading-spinner');
+            if (loadingSpinner) {
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        // Mobile menu functionality
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        const mobileMenuPanel = document.getElementById('mobile-menu-panel');
+        const closeMobileMenuBtn = document.getElementById('close-mobile-menu');
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.remove('hidden');
+                setTimeout(() => {
+                    mobileMenuPanel.style.transform = 'translateX(0)';
+                }, 10);
+            });
+        }
+
+        function closeMobileMenu() {
+            mobileMenuPanel.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                mobileMenu.classList.add('hidden');
+            }, 300);
+        }
+
+        if (closeMobileMenuBtn) {
+            closeMobileMenuBtn.addEventListener('click', closeMobileMenu);
+        }
+
+        if (mobileMenu) {
+            mobileMenu.addEventListener('click', (e) => {
+                if (e.target === mobileMenu) {
+                    closeMobileMenu();
+                }
+            });
+        }
+
+        // Navigation management
+        function updateNavigation() {
+            const navMenu = document.getElementById('nav-menu');
+            const mobileNavMenu = document.getElementById('mobile-nav-menu');
+            
+            if (currentUser && navMenu && mobileNavMenu) {
+                const navItems = [
+                    { id: 'dashboard', icon: 'fas fa-tachometer-alt', text: 'Dashboard' },
+                    { id: 'profile', icon: 'fas fa-user', text: 'Perfil' },
+                    { id: 'artworks', icon: 'fas fa-images', text: 'Obras' },
+                    { id: 'logout', icon: 'fas fa-sign-out-alt', text: 'Sair', onclick: 'logout()' }
+                ];
+
+                navMenu.innerHTML = navItems.map(item => 
+                    `<button onclick="${item.onclick || `showPage('${item.id}')`}" class="nav-btn hover:text-primary transition-colors">
+                        <i class="${item.icon} mr-2"></i>${item.text}
+                    </button>`
+                ).join('');
+
+                mobileNavMenu.innerHTML = navItems.map(item =>
+                    `<button onclick="${item.onclick || `showPage('${item.id}'); closeMobileMenu()`}" class="block w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                        <i class="${item.icon} mr-3"></i>${item.text}
+                    </button>`
+                ).join('');
+            }
+        }
+
+        // Page navigation
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+            
+            // Load page-specific data
+            switch(pageId) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'profile':
+                    loadProfile();
+                    break;
+                case 'artworks':
+                    loadArtworks();
+                    break;
+            }
+        }
+
+        // Auth functions
+        function showLoginForm() {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            if (loginForm && registerForm) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+            }
+        }
+
+        function showRegisterForm() {
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            if (loginForm && registerForm) {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+            }
+        }
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+            
+            toast.className = `${bgColor} text-white px-6 py-3 rounded-lg shadow-lg animate-slide-left`;
+            toast.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation-triangle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 3000);
+        }
+
+        // Authentication with Firebase
+        async function login(email, password) {
+            if (window.firebaseAuth && window.signInWithEmailAndPassword) {
+                const userCredential = await window.signInWithEmailAndPassword(window.firebaseAuth, email, password);
+                return userCredential.user;
+            } else {
+                throw new Error('Firebase não configurado');
+            }
+        }
+
+        async function register(email, password, name) {
+            if (window.firebaseAuth && window.createUserWithEmailAndPassword && window.updateProfile) {
+                const userCredential = await window.createUserWithEmailAndPassword(window.firebaseAuth, email, password);
+                await window.updateProfile(userCredential.user, { displayName: name });
+                return userCredential.user;
+            } else {
+                throw new Error('Firebase não configurado');
+            }
+        }
+
+        async function logout() {
+            if (window.firebaseAuth && window.signOut) {
+                await window.signOut(window.firebaseAuth);
+            }
+        }
+
+        // Supabase data operations - CORRIGIDO
+        async function saveArtist(artistData) {
+            if (supabase) {
+                try {
+                    console.log('Saving artist data:', artistData);
+                    
+                    // Primeiro, verificar se existe um perfil
+                    const { data: existingProfiles, error: fetchError } = await supabase
+                        .from('art_gallery')
+                        .select('*')
+                        .eq('user_id', artistData.user_id)
+                        .eq('artwork_title', 'Perfil do Artista');
+
+                    if (fetchError) {
+                        console.error('Error fetching profile:', fetchError);
+                    }
+
+                    if (existingProfiles && existingProfiles.length > 0) {
+                        // Update existing profile
+                        const existingProfile = existingProfiles[0];
+                        const { data, error } = await supabase
+                            .from('art_gallery')
+                            .update({
+                                artist_name: artistData.name,
+                                artist_email: currentUser.email,
+                                artist_style: artistData.style,
+                                artist_location: artistData.location,
+                                artist_phone: artistData.phone,
+                                artist_whatsapp: artistData.whatsapp,
+                                artist_bio: artistData.bio,
+                                artist_avatar_url: artistData.avatar_url || existingProfile.artist_avatar_url,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', existingProfile.id)
+                            .select();
+
+                        if (error) throw error;
+                        
+                        // Update all other records for this user with the new artist info
+                        await supabase
+                            .from('art_gallery')
+                            .update({
+                                artist_name: artistData.name,
+                                artist_email: currentUser.email,
+                                artist_style: artistData.style,
+                                artist_location: artistData.location,
+                                artist_phone: artistData.phone,
+                                artist_whatsapp: artistData.whatsapp,
+                                artist_bio: artistData.bio,
+                                artist_avatar_url: artistData.avatar_url || existingProfile.artist_avatar_url
+                            })
+                            .eq('user_id', artistData.user_id);
+
+                        return data[0];
+                    } else {
+                        // Create new profile
+                        const { data, error } = await supabase
+                            .from('art_gallery')
+                            .insert({
+                                user_id: artistData.user_id,
+                                artist_name: artistData.name,
+                                artist_email: currentUser.email,
+                                artist_style: artistData.style,
+                                artist_location: artistData.location,
+                                artist_phone: artistData.phone,
+                                artist_whatsapp: artistData.whatsapp,
+                                artist_bio: artistData.bio,
+                                artist_avatar_url: artistData.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face',
+                                artwork_title: 'Perfil do Artista',
+                                artwork_description: 'Dados do perfil do artista',
+                                artwork_year: new Date().getFullYear(),
+                                artwork_medium: 'Digital',
+                                artwork_image_url: artistData.avatar_url || 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=300&h=300&fit=crop&crop=face'
+                            })
+                            .select();
+
+                        if (error) throw error;
+                        return data[0];
+                    }
+                } catch (error) {
+                    console.error('Error in saveArtist:', error);
+                    throw error;
+                }
+            }
+        }
+
+        async function getArtist(userId) {
+            if (supabase) {
+                try {
+                    const { data: profiles, error } = await supabase
+                        .from('art_gallery')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .eq('artwork_title', 'Perfil do Artista')
+                        .limit(1);
+                    
+                    if (error) {
+                        console.error('Error fetching artist:', error);
+                        return null;
+                    }
+                    
+                    return profiles && profiles.length > 0 ? profiles[0] : null;
+                } catch (error) {
+                    console.error('Error in getArtist:', error);
+                    return null;
+                }
+            }
+        }
+
+        async function saveArtwork(artworkData) {
+            if (supabase) {
+                try {
+                    const artist = await getArtist(currentUser.id);
+                    if (!artist) {
+                        throw new Error('Complete seu perfil antes de adicionar obras');
+                    }
+
+                    const dataToSave = {
+                        user_id: currentUser.id,
+                        artist_name: artist.artist_name,
+                        artist_email: artist.artist_email,
+                        artist_style: artist.artist_style,
+                        artist_location: artist.artist_location,
+                        artist_phone: artist.artist_phone,
+                        artist_whatsapp: artist.artist_whatsapp,
+                        artist_bio: artist.artist_bio,
+                        artist_avatar_url: artist.artist_avatar_url,
+                        artwork_title: artworkData.title,
+                        artwork_description: artworkData.description,
+                        artwork_year: artworkData.year,
+                        artwork_medium: artworkData.medium,
+                        artwork_dimensions: artworkData.dimensions,
+                        artwork_image_url: artworkData.image_url
+                    };
+
+                    let result;
+                    if (artworkData.id) {
+                        const { data, error } = await supabase
+                            .from('art_gallery')
+                            .update(dataToSave)
+                            .eq('id', artworkData.id)
+                            .select();
+                        if (error) throw error;
+                        result = data[0];
+                    } else {
+                        const { data, error } = await supabase
+                            .from('art_gallery')
+                            .insert(dataToSave)
+                            .select();
+                        if (error) throw error;
+                        result = data[0];
+                    }
+                    return result;
+                } catch (error) {
+                    console.error('Error in saveArtwork:', error);
+                    throw error;
+                }
+            }
+        }
+
+        async function getArtworks(userId) {
+            if (supabase) {
+                try {
+                    const { data, error } = await supabase
+                        .from('art_gallery')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .neq('artwork_title', 'Perfil do Artista')
+                        .order('created_at', { ascending: false });
+                    
+                    if (error) throw error;
+                    return data || [];
+                } catch (error) {
+                    console.error('Error fetching artworks:', error);
+                    return [];
+                }
+            }
+            return [];
+        }
+
+        async function deleteArtwork(artworkId) {
+            if (supabase) {
+                const { error } = await supabase
+                    .from('art_gallery')
+                    .delete()
+                    .eq('id', artworkId);
+                if (error) throw error;
+            }
+        }
+
+        // File upload
+        async function uploadFile(file, bucket, path) {
+            if (supabase) {
+                try {
+                    const { data, error } = await supabase.storage
+                        .from(bucket)
+                        .upload(path, file, {
+                            cacheControl: '3600',
+                            upsert: true
+                        });
+                    
+                    if (error) throw error;
+                    
+                    const { data: { publicUrl } } = supabase.storage
+                        .from(bucket)
+                        .getPublicUrl(path);
+                    
+                    return publicUrl;
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    // Fallback to a demo URL for this example
+                    return 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=400&fit=crop';
+                }
+            } else {
+                return 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=400&fit=crop';
+            }
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            if (!currentUser) return;
+            
+            try {
+                const artworks = await getArtworks(currentUser.id);
+                
+                const statsArtworks = document.getElementById('stats-artworks');
+                const statsViews = document.getElementById('stats-views');
+                const statsLikes = document.getElementById('stats-likes');
+                
+                if (statsArtworks) statsArtworks.textContent = artworks.length;
+                if (statsViews) statsViews.textContent = artworks.reduce((sum, a) => sum + (a.artwork_views || 0), 0);
+                if (statsLikes) statsLikes.textContent = artworks.reduce((sum, a) => sum + (a.artwork_likes || 0), 0);
+                
+                const recentArtworks = document.getElementById('recent-artworks');
+                if (recentArtworks) {
+                    if (artworks.length > 0) {
+                        recentArtworks.innerHTML = artworks.slice(0, 3).map(artwork => `
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+                                <img src="${artwork.artwork_image_url}" alt="${artwork.artwork_title}" class="w-full h-32 object-cover">
+                                <div class="p-3">
+                                    <h4 class="font-medium mb-1">${artwork.artwork_title}</h4>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400">${artwork.artwork_medium || 'Técnica não informada'} - ${artwork.artwork_year || 'Ano não informado'}</p>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        recentArtworks.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center col-span-3">Nenhuma obra cadastrada ainda.</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                showToast('Erro ao carregar dashboard', 'error');
+            }
+        }
+
+        // Load profile data
+        async function loadProfile() {
+            if (!currentUser) return;
+            
+            try {
+                const artist = await getArtist(currentUser.id);
+                
+                const profileName = document.getElementById('profile-name');
+                const profileEmail = document.getElementById('profile-email');
+                
+                if (profileName) profileName.value = currentUser.name || '';
+                if (profileEmail) profileEmail.value = currentUser.email || '';
+                
+                if (artist) {
+                    const profileStyle = document.getElementById('profile-style');
+                    const profileLocation = document.getElementById('profile-location');
+                    const profilePhone = document.getElementById('profile-phone');
+                    const profileWhatsapp = document.getElementById('profile-whatsapp');
+                    const profileBio = document.getElementById('profile-bio');
+                    const profileAvatarPreview = document.getElementById('profile-avatar-preview');
+                    
+                    if (profileStyle) profileStyle.value = artist.artist_style || '';
+                    if (profileLocation) profileLocation.value = artist.artist_location || '';
+                    if (profilePhone) profilePhone.value = artist.artist_phone || '';
+                    if (profileWhatsapp) profileWhatsapp.value = artist.artist_whatsapp || '';
+                    if (profileBio) profileBio.value = artist.artist_bio || '';
+                    
+                    if (artist.artist_avatar_url && profileAvatarPreview) {
+                        profileAvatarPreview.src = artist.artist_avatar_url;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                showToast('Erro ao carregar perfil', 'error');
+            }
+        }
+
+        // Load artworks
+        async function loadArtworks() {
+            if (!currentUser) return;
+            
+            try {
+                const artworks = await getArtworks(currentUser.id);
+                const artworksGrid = document.getElementById('artworks-grid');
+                
+                if (artworksGrid) {
+                    if (artworks.length > 0) {
+                        artworksGrid.innerHTML = artworks.map(artwork => `
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden animate-zoom-in">
+                                <div class="image-preview">
+                                    <img src="${artwork.artwork_image_url}" alt="${artwork.artwork_title}" class="w-full h-48 object-cover">
+                                </div>
+                                <div class="p-6">
+                                    <h3 class="text-xl font-bold mb-2">${artwork.artwork_title}</h3>
+                                    <p class="text-gray-600 dark:text-gray-400 mb-2">${artwork.artwork_medium} - ${artwork.artwork_year}</p>
+                                    <p class="text-gray-700 dark:text-gray-300 mb-4 line-clamp-2">${artwork.artwork_description}</p>
+                                    <div class="flex space-x-2">
+                                        <button onclick="editArtwork(${JSON.stringify(artwork).replace(/"/g, '&quot;')})" class="flex-1 bg-primary text-white py-2 px-4 rounded-lg hover:bg-opacity-90 transition-colors">
+                                            <i class="fas fa-edit mr-1"></i>Editar
+                                        </button>
+                                        <button onclick="deleteArtworkConfirm('${artwork.id}')" class="bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 transition-colors">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        artworksGrid.innerHTML = `
+                            <div class="col-span-full text-center py-12">
+                                <i class="fas fa-images text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
+                                <h3 class="text-xl font-bold mb-2">Nenhuma obra cadastrada</h3>
+                                <p class="text-gray-600 dark:text-gray-400 mb-6">Comece adicionando sua primeira obra de arte</p>
+                                <button onclick="showAddArtworkModal()" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-opacity-90 transition-all">
+                                    <i class="fas fa-plus mr-2"></i>Adicionar Obra
+                                </button>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading artworks:', error);
+                showToast('Erro ao carregar obras', 'error');
+            }
+        }
+
+        // Artwork modal functions
+        function showAddArtworkModal() {
+            const modal = document.getElementById('artwork-modal');
+            const title = document.getElementById('artwork-modal-title');
+            const form = document.getElementById('artwork-form');
+            const id = document.getElementById('artwork-id');
+            const uploadPlaceholder = document.getElementById('upload-placeholder');
+            const uploadPreview = document.getElementById('upload-preview');
+            
+            if (title) title.textContent = 'Nova Obra';
+            if (form) form.reset();
+            if (id) id.value = '';
+            if (uploadPlaceholder) uploadPlaceholder.classList.remove('hidden');
+            if (uploadPreview) uploadPreview.classList.add('hidden');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function editArtwork(artwork) {
+            const modal = document.getElementById('artwork-modal');
+            const title = document.getElementById('artwork-modal-title');
+            const id = document.getElementById('artwork-id');
+            const artworkTitle = document.getElementById('artwork-title');
+            const artworkYear = document.getElementById('artwork-year');
+            const artworkMedium = document.getElementById('artwork-medium');
+            const artworkDimensions = document.getElementById('artwork-dimensions');
+            const artworkDescription = document.getElementById('artwork-description');
+            const imagePreview = document.getElementById('artwork-image-preview');
+            const uploadPlaceholder = document.getElementById('upload-placeholder');
+            const uploadPreview = document.getElementById('upload-preview');
+            
+            if (title) title.textContent = 'Editar Obra';
+            if (id) id.value = artwork.id;
+            if (artworkTitle) artworkTitle.value = artwork.artwork_title;
+            if (artworkYear) artworkYear.value = artwork.artwork_year;
+            if (artworkMedium) artworkMedium.value = artwork.artwork_medium;
+            if (artworkDimensions) artworkDimensions.value = artwork.artwork_dimensions || '';
+            if (artworkDescription) artworkDescription.value = artwork.artwork_description;
+            
+            if (artwork.artwork_image_url && imagePreview) {
+                imagePreview.src = artwork.artwork_image_url;
+                if (uploadPlaceholder) uploadPlaceholder.classList.add('hidden');
+                if (uploadPreview) uploadPreview.classList.remove('hidden');
+            }
+            
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeArtworkModal() {
+            const modal = document.getElementById('artwork-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function removeArtworkImage() {
+            const fileInput = document.getElementById('artwork-image');
+            const uploadPlaceholder = document.getElementById('upload-placeholder');
+            const uploadPreview = document.getElementById('upload-preview');
+            
+            if (fileInput) fileInput.value = '';
+            if (uploadPlaceholder) uploadPlaceholder.classList.remove('hidden');
+            if (uploadPreview) uploadPreview.classList.add('hidden');
+        }
+
+        function deleteArtworkConfirm(artworkId) {
+            showConfirmDialog('Tem certeza que deseja excluir esta obra?', async () => {
+                try {
+                    await deleteArtwork(artworkId);
+                    showToast('Obra excluída com sucesso');
+                    loadArtworks();
+                } catch (error) {
+                    console.error('Error deleting artwork:', error);
+                    showToast('Erro ao excluir obra', 'error');
+                }
+            });
+        }
+
+        // Custom modal dialog
+        function showConfirmDialog(message, onConfirm) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+                    <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
+                    <div class="flex justify-end space-x-3">
+                        <button class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" onclick="this.closest('.fixed').remove()">Cancelar</button>
+                        <button class="confirm-btn px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded">Confirmar</button>
+                    </div>
+                </div>
+            `;
+            
+            const confirmBtn = modal.querySelector('.confirm-btn');
+            confirmBtn.addEventListener('click', () => {
+                modal.remove();
+                onConfirm();
+            });
+            
+            document.body.appendChild(modal);
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auth form handlers
+            const loginForm = document.getElementById('login-form-element');
+            if (loginForm) {
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const submitBtn = document.getElementById('login-btn-text');
+                    const spinner = document.getElementById('login-btn-spinner');
+                    
+                    if (submitBtn) submitBtn.textContent = 'Entrando...';
+                    if (spinner) spinner.classList.remove('hidden');
+                    
+                    try {
+                        const email = document.getElementById('login-email').value;
+                        const password = document.getElementById('login-password').value;
+                        
+                        await login(email, password);
+                        showToast('Login realizado com sucesso!');
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        showToast('Erro no login. Verifique suas credenciais.', 'error');
+                    } finally {
+                        if (submitBtn) submitBtn.textContent = 'Entrar';
+                        if (spinner) spinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            const registerForm = document.getElementById('register-form-element');
+            if (registerForm) {
+                registerForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const submitBtn = document.getElementById('register-btn-text');
+                    const spinner = document.getElementById('register-btn-spinner');
+                    
+                    const password = document.getElementById('register-password').value;
+                    const confirmPassword = document.getElementById('register-confirm-password').value;
+                    
+                    if (password !== confirmPassword) {
+                        showToast('As senhas não coincidem', 'error');
+                        return;
+                    }
+                    
+                    if (submitBtn) submitBtn.textContent = 'Criando...';
+                    if (spinner) spinner.classList.remove('hidden');
+                    
+                    try {
+                        const email = document.getElementById('register-email').value;
+                        const name = document.getElementById('register-name').value;
+                        
+                        await register(email, password, name);
+                        showToast('Conta criada com sucesso! Complete seu perfil.');
+                    } catch (error) {
+                        console.error('Registration error:', error);
+                        showToast('Erro ao criar conta. Tente novamente.', 'error');
+                    } finally {
+                        if (submitBtn) submitBtn.textContent = 'Criar Conta';
+                        if (spinner) spinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Profile form handler
+            const profileForm = document.getElementById('profile-form');
+            if (profileForm) {
+                profileForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const submitBtn = document.getElementById('profile-btn-text');
+                    const spinner = document.getElementById('profile-btn-spinner');
+                    
+                    if (submitBtn) submitBtn.textContent = 'Salvando...';
+                    if (spinner) spinner.classList.remove('hidden');
+                    
+                    try {
+                        const artistData = {
+                            user_id: currentUser.id,
+                            name: document.getElementById('profile-name').value,
+                            style: document.getElementById('profile-style').value,
+                            location: document.getElementById('profile-location').value,
+                            phone: document.getElementById('profile-phone').value,
+                            whatsapp: document.getElementById('profile-whatsapp').value,
+                            bio: document.getElementById('profile-bio').value
+                        };
+
+                        const avatarFile = document.getElementById('profile-avatar').files[0];
+                        if (avatarFile) {
+                            const avatarPath = `avatars/${currentUser.id}/${Date.now()}_${avatarFile.name}`;
+                            artistData.avatar_url = await uploadFile(avatarFile, 'images', avatarPath);
+                        }
+                        
+                        await saveArtist(artistData);
+                        showToast('Perfil salvo com sucesso!');
+                    } catch (error) {
+                        console.error('Profile save error:', error);
+                        showToast(`Erro ao salvar perfil: ${error.message}`, 'error');
+                    } finally {
+                        if (submitBtn) submitBtn.textContent = 'Salvar Alterações';
+                        if (spinner) spinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            // Artwork form handler
+            const artworkForm = document.getElementById('artwork-form');
+            if (artworkForm) {
+                artworkForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const submitBtn = document.getElementById('artwork-btn-text');
+                    const spinner = document.getElementById('artwork-btn-spinner');
+                    
+                    if (submitBtn) submitBtn.textContent = 'Salvando...';
+                    if (spinner) spinner.classList.remove('hidden');
+                    
+                    try {
+                        const artworkData = {
+                            title: document.getElementById('artwork-title').value,
+                            description: document.getElementById('artwork-description').value,
+                            year: parseInt(document.getElementById('artwork-year').value),
+                            medium: document.getElementById('artwork-medium').value,
+                            dimensions: document.getElementById('artwork-dimensions').value
+                        };
+
+                        const artworkId = document.getElementById('artwork-id').value;
+                        if (artworkId) {
+                            artworkData.id = artworkId;
+                        }
+
+                        const imageFile = document.getElementById('artwork-image').files[0];
+                        if (imageFile) {
+                            const imagePath = `artworks/${currentUser.id}/${Date.now()}_${imageFile.name}`;
+                            artworkData.image_url = await uploadFile(imageFile, 'images', imagePath);
+                        } else if (!artworkId) {
+                            showToast('Por favor, selecione uma imagem para a obra', 'error');
+                            return;
+                        }
+                        
+                        await saveArtwork(artworkData);
+                        closeArtworkModal();
+                        loadArtworks();
+                        showToast(artworkId ? 'Obra atualizada com sucesso!' : 'Obra adicionada com sucesso!');
+                    } catch (error) {
+                        console.error('Artwork save error:', error);
+                        showToast(`Erro ao salvar obra: ${error.message}`, 'error');
+                    } finally {
+                        if (submitBtn) submitBtn.textContent = 'Salvar Obra';
+                        if (spinner) spinner.classList.add('hidden');
+                    }
+                });
+            }
+
+            // File upload handlers
+            const profileAvatar = document.getElementById('profile-avatar');
+            if (profileAvatar) {
+                profileAvatar.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const preview = document.getElementById('profile-avatar-preview');
+                            if (preview) {
+                                preview.src = e.target.result;
+                            }
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                });
+            }
+
+            // Artwork image upload
+            const uploadArea = document.getElementById('artwork-upload-area');
+            const fileInput = document.getElementById('artwork-image');
+
+            if (uploadArea && fileInput) {
+                uploadArea.addEventListener('click', () => fileInput.click());
+
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('drag-over');
+                });
+
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.classList.remove('drag-over');
+                });
+
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('drag-over');
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        fileInput.files = files;
+                        handleArtworkImageChange(files[0]);
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        handleArtworkImageChange(file);
+                    }
+                });
+            }
+
+            function handleArtworkImageChange(file) {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const preview = document.getElementById('artwork-image-preview');
+                        const placeholder = document.getElementById('upload-placeholder');
+                        const previewContainer = document.getElementById('upload-preview');
+                        
+                        if (preview) preview.src = e.target.result;
+                        if (placeholder) placeholder.classList.add('hidden');
+                        if (previewContainer) previewContainer.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    showToast('Por favor, selecione um arquivo de imagem válido', 'error');
+                }
+            }
+
+            // Close modals when clicking outside
+            const artworkModal = document.getElementById('artwork-modal');
+            if (artworkModal) {
+                artworkModal.addEventListener('click', (e) => {
+                    if (e.target.id === 'artwork-modal') closeArtworkModal();
+                });
+            }
+        });
+    </script>
+</body>
+</html>
